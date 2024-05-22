@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import csv
 
 
 def func(x):
@@ -19,9 +20,15 @@ if __name__ == "__main__":
     count = 500
 
     xdata = np.linspace(xmin, xmax, count)
-    ydata1 = [func(x) for x in xdata]
+    ydata = [func(x) for x in xdata]
+    with open('result1.csv', 'w', newline='') as csvfile:
+        c = csv.writer(csvfile, delimiter=' ',
+                       quotechar='|', quoting=csv.QUOTE_MINIMAL)
+        c.writerow(['x', 'y'])
+        for i in range(len(xdata)):
+            c.writerow([xdata[i], ydata[i]])
 
-    plt.plot(xdata, ydata1, "-k", label="f(x)")
+    plt.plot(xdata, ydata, "-k", label="f(x)")
     plt.legend()
 
     plt.grid()
