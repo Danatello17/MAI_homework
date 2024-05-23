@@ -21,15 +21,16 @@ if __name__ == "__main__":
 
     xdata = np.linspace(xmin, xmax, count)
     ydata = [func(x) for x in xdata]
-    with open('result1.csv', 'w', newline='') as csvfile:
-        c = csv.writer(csvfile, delimiter=' ',
-                       quotechar='|', quoting=csv.QUOTE_MINIMAL)
-        c.writerow(['x', 'y'])
-        for i in range(len(xdata)):
-            c.writerow([xdata[i], ydata[i]])
 
     plt.plot(xdata, ydata, "-k", label="f(x)")
     plt.legend()
 
     plt.grid()
+    with open('result1.csv', 'w', newline='') as csvfile:
+        c = csv.writer(csvfile, delimiter=',',
+                       quotechar='|', quoting=csv.QUOTE_MINIMAL)
+        c.writerow(['settings', 'grid', 'on'])
+        c.writerow(['', 'x', 'f(x)'])
+        for i in range(len(xdata)):
+            c.writerow([i + 1, xdata[i], ydata[i]])
     plt.show()
