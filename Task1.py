@@ -1,7 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import csv
-
+import shutil
+import os
 
 def func(x):
     """
@@ -29,8 +30,11 @@ if __name__ == "__main__":
     with open('result1.csv', 'w', newline='') as csvfile:
         c = csv.writer(csvfile, delimiter=',',
                        quotechar='|', quoting=csv.QUOTE_MINIMAL)
-        c.writerow(['settings', 'grid', 'on'])
         c.writerow(['', 'x', 'f(x)'])
         for i in range(len(xdata)):
             c.writerow([i + 1, xdata[i], ydata[i]])
+    source_path = "result1.csv"
+    destination_path = "result"
+    if not(os.path.exists("result/result1.csv")):
+        shutil.move(source_path, destination_path)
     plt.show()
