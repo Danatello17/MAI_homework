@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
-#Максимов Артём Дмитриевич М4О-307Б-23 
+#Максимов Артём Дмитриевич М4О-307Б-23
 #Моделирование отражения гармонического сигнала от слоя диэлектрика
-
 
 import math
 
@@ -66,8 +65,6 @@ if __name__ == '__main__':
     f_Hz = (f_min + f_max) / 2
 
     # Дискрет по пространству в м
-    # for test Hz 0.2*1e-4
-    # for model 2*1e-4
     dx = 0.5*1e-4
     
     wavelength = c / f_Hz
@@ -77,11 +74,9 @@ if __name__ == '__main__':
     Sc = 1.0
 
     # Размер области моделирования в м
-    maxSize_m = 1.6
+    maxSize_m = 1.0
 
     # Время расчета в секундах
-    # for test 1e-9
-    # for model 4e-8 
     maxTime_s = 30e-9
 
     # Положение источника в м
@@ -127,8 +122,7 @@ if __name__ == '__main__':
     probes = [Probe(pos, maxTime) for pos in probesPos]
 
 
-    # для построения чисто падающего сигнала возьмем дополнительный датчик
-    # решение впринцепи очень костыльное, но ладно 
+    # Для построения чисто падающего сигнала возьмем дополнительный датчик
     posSP = 0.3
     signal_probe = Probe(sampler_x.sample(posSP), maxTime)
 
@@ -154,7 +148,7 @@ if __name__ == '__main__':
 
     # Источник
     magnitude = 1.0
-    signal = sources.Gaussian(magnitude, 6000.0, 2000.0)
+    signal = sources.GaussianDiff(magnitude, 6000.0, 2000.0)
     source = sources.SourceTFSFG(signal, 0.0, Sc, eps[sourcePos], mu[sourcePos])
 
     Ez = np.zeros(maxSize)
@@ -207,7 +201,6 @@ if __name__ == '__main__':
         if(t < 10000):
             signal_probe.addData(Ez,Hy)
             
-        # for test
         if(t == 10000):
             signal_probe.addData(Ez,Hy)
 
