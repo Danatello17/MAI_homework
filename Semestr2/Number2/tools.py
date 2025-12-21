@@ -4,13 +4,39 @@
 методом FDTD
 '''
 
-from math import gamma
-import pylab
+from typing import List
+
+import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
-from typing import List, Optional
 
-from objects import Probe
+
+class Probe:
+    '''
+    Класс для хранения временного сигнала в датчике.
+    '''
+    def __init__(self, position: int, maxTime: int):
+        '''
+        position - положение датчика (номер ячейки).
+        maxTime - максимальное количество временных
+            шагов для хранения в датчике.
+        '''
+        self.position = position
+
+        # Временные сигналы для полей E и H
+        self.E = np.zeros(maxTime)
+        self.H = np.zeros(maxTime)
+
+        # Номер временного шага для сохранения полей
+        self._time = 0
+
+    def addData(self, E: npt.NDArray, H: npt.NDArray):
+        '''
+        Добавить данные по полям E и H в датчик.
+        '''
+        self.E[self._time] = E[self.position]
+        self.H[self._time] = H[self.position]
+        self._time += 1
 
 
 class AnimateFieldDisplay:
@@ -19,52 +45,41 @@ class AnimateFieldDisplay:
     '''
 
     def __init__(self,
-                 dx: float,
-                 dt: float,
                  maxXSize: int,
                  minYSize: float, maxYSize: float,
-                 yLabel: str,
-                 title: Optional[str] = None
-                 ):
+                 yLabel: str, d: float,dt: float):
         '''
-        dx - дискрет по простарнству, м
-        dt - дискрет по времени, сек
         maxXSize - размер области моделирования в отсчетах.
         minYSize, maxYSize - интервал отображения графика по оси Y.
         yLabel - метка для оси Y
         '''
-        self.maxXSize = maxXSize
-        self.minYSize = minYSize
-        self.maxYSize = maxYSize
-        self._xList = None
+        self._maxXSize = maxXSize
+        self.d = d
+        self.dt = dt
+        self._minYSize = minYSize
+        self._maxYSize = maxYSize
+        self._xdata = None
         self._line = None
         self._xlabel = 'x, м'
         self._ylabel = yLabel
         self._probeStyle = 'xr'
         self._sourceStyle = 'ok'
-        self._dx = dx
-        self._dt = dt
-        self._title = title
 
     def activate(self):
         '''
         Инициализировать окно с анимацией
         '''
-        self._xList = np.arange(self.maxXSize) * self._dx
+        self._xdata = np.arange(self._maxXSize) *self.d
 
         # Включить интерактивный режим для анимации
-        pylab.ion()
+        plt.ion()
 
         # Создание окна для графика
-        self._fig, self._ax = pylab.subplots(
-            figsize=(10, 6.5))
-
-        if self._title is not None:
-            self._fig.suptitle(self._title)
+        self._fig, self._ax = plt.subplots()
 
         # Установка отображаемых интервалов по осям
-        self._ax.set_xlim(0, self.maxXSize * self._dx)
-        self._ax.set_ylim(self.minYSize, self.maxYSize)
+        self._ax.set_xlim(0, self._maxXSize* self.d)
+        self._ax.set_ylim(self._minYSize, self._maxYSize)
 
         # Установка меток по осям
         self._ax.set_xlabel(self._xlabel)
@@ -74,26 +89,18 @@ class AnimateFieldDisplay:
         self._ax.grid()
 
         # Отобразить поле в начальный момент времени
-        self._line, = self._ax.plot(self._xList, np.zeros(self.maxXSize))
+        self._line = self._ax.plot(self._xdata, np.zeros(self._maxXSize))[0]
 
     def drawProbes(self, probesPos: List[int]):
         '''
-        Нарисовать пробники.
+        Нарисовать датчики.
 
-        probesPos - список координат пробников для регистрации временных
+        probesPos - список координат датчиков для регистрации временных
             сигналов (в отсчетах).
         '''
-        # Отобразить положение пробника
-        self._ax.plot(np.array(probesPos) * self._dx,
-                      [0] * len(probesPos), self._probeStyle)
-
-        for n, pos in enumerate(probesPos):
-            self._ax.text(
-                pos * self._dx,
-                0,
-                '\n{n}'.format(n=n + 1),
-                verticalalignment='top',
-                horizontalalignment='center')
+        probesPos = [pos * self.d for pos in probesPos]
+        # Отобразить положение датчиков
+        self._ax.plot(probesPos, [0] * len(probesPos), self._probeStyle)
 
     def drawSources(self, sourcesPos: List[int]):
         '''
@@ -101,9 +108,9 @@ class AnimateFieldDisplay:
 
         sourcesPos - список координат источников (в отсчетах).
         '''
-        # Отобразить положение пробника
-        self._ax.plot(np.array(sourcesPos) * self._dx,
-                      [0] * len(sourcesPos), self._sourceStyle)
+        sourcesPos = [pos * self.d for pos in sourcesPos]
+        # Отобразить положение источников
+        self._ax.plot(sourcesPos, [0] * len(sourcesPos), self._sourceStyle)
 
     def drawBoundary(self, position: int):
         '''
@@ -111,380 +118,170 @@ class AnimateFieldDisplay:
 
         position - координата X границы (в отсчетах).
         '''
-        self._ax.plot([position * self._dx, position * self._dx],
-                      [self.minYSize, self.maxYSize],
+        position = position * self.d
+        self._ax.plot([position, position],
+                      [self._minYSize, self._maxYSize],
                       '--k')
 
     def stop(self):
         '''
         Остановить анимацию
         '''
-        pylab.ioff()
+        plt.ioff()
 
-    def updateData(self, data: npt.NDArray[float], timeCount: int):
+    def updateData(self, data: npt.NDArray, timeCount: int):
         '''
         Обновить данные с распределением поля в пространстве
         '''
         self._line.set_ydata(data)
-        time_str = '{:.5f}'.format(timeCount * self._dt * 1e9)
-        self._ax.set_title(f'{time_str} нс')
+        timeCount=timeCount*self.dt
+        self._ax.set_title(str(timeCount))
         self._fig.canvas.draw()
         self._fig.canvas.flush_events()
 
-###
-### OBSOLETE
-###        
-def showProbeSignals(probes: List[Probe],
-                     dx: float, dt: float, minYSize: float, maxYSize: float):
+class AnimateFieldDisplayEH:
     '''
-    Показать графики сигналов, зарегистрированых в датчиках.
+    Класс для отображения анимации распространения ЭМ волны в пространстве
+    '''
+
+    def __init__(self,
+                 maxXSize: int,
+                 minYSizeE: float, maxYSizeE: float, d:float,dt:float):
+        '''
+        maxXSize - размер области моделирования в отсчетах.
+        minYSizeE, maxYSizeE - интервал отображения графика по оси Y.
+        '''
+        Z0 = 120.0 * np.pi
+        self._maxXSize = maxXSize
+        self.d=d
+        self.dt=dt
+        self._minYSize_E = minYSizeE
+        self._maxYSize_E = maxYSizeE
+        self._minYSize_H = minYSizeE / Z0
+        self._maxYSize_H = maxYSizeE / Z0
+        self._xdata_E = None
+        self._xdata_H = None
+        self._line_E = None
+        self._line_H = None
+        self._ax_E = None
+        self._ax_H = None
+        self._xlabel = 'x, м'
+        self._ylabel_E = 'Ez, В/м'
+        self._ylabel_H = 'Hy, А/м'
+        self._probeStyle = 'xr'
+        self._sourceStyle = 'ok'
+
+    def activate(self):
+        '''
+        Инициализировать окно с анимацией
+        '''
+        self._xdata_E = np.arange(self._maxXSize)*self.d
+        self._xdata_H = np.arange(self._maxXSize)*self.d
+
+        # Включить интерактивный режим для анимации
+        plt.ion()
+
+        # Создание окна для графика
+        self._fig, (self._ax_E, self._ax_H) = plt.subplots(nrows=2)
+
+        # Установка отображаемых интервалов по осям
+        self._ax_E.set_xlim(0, self._maxXSize*self.d)
+        self._ax_E.set_ylim(self._minYSize_E, self._maxYSize_E)
+        self._ax_H.set_xlim(0, self._maxXSize*self.d)
+        self._ax_H.set_ylim(self._minYSize_H, self._maxYSize_H)
+
+        # Установка меток по осям
+        self._ax_E.set_xlabel(self._xlabel)
+        self._ax_E.set_ylabel(self._ylabel_E)
+        self._ax_H.set_xlabel(self._xlabel)
+        self._ax_H.set_ylabel(self._ylabel_H)
+
+        # Включить сетку на графике
+        self._ax_E.grid()
+        self._ax_H.grid()
+
+        # Отобразить поле в начальный момент времени
+        self._line_E = self._ax_E.plot(self._xdata_E, np.zeros(self._maxXSize*self.d), '-b')[0]
+        self._line_H = self._ax_H.plot(self._xdata_H, np.zeros(self._maxXSize*self.d), '-r')[0]
+
+    def drawProbes(self, probesPos: List[int]):
+        '''
+        Нарисовать датчики.
+
+        probesPos - список координат датчиков для регистрации временных
+            сигналов (в отсчетах).
+        '''
+        # Отобразить положение датчиков
+        self._ax_E.plot(probesPos, [0] * len(probesPos), self._probeStyle)
+        self._ax_H.plot(probesPos, [0] * len(probesPos), self._probeStyle)
+
+    def drawSources(self, sourcesPos: List[int]):
+        '''
+        Нарисовать источники.
+
+        sourcesPos - список координат источников (в отсчетах).
+        '''
+        # Отобразить положение источников
+        self._ax_E.plot(sourcesPos, [0] * len(sourcesPos), self._sourceStyle)
+        self._ax_H.plot(sourcesPos, [0] * len(sourcesPos), self._sourceStyle)
+
+    def drawBoundary(self, position: int):
+        '''
+        Нарисовать границу в области моделирования.
+
+        position - координата X границы (в отсчетах).
+        '''
+        self._ax_E.plot([position, position],
+                      [self._minYSize_E, self._maxYSize_E],
+                      '--k')
+        self._ax_H.plot([position, position],
+                      [self._minYSize_H, self._maxYSize_H],
+                      '--k')
+
+    def stop(self):
+        '''
+        Остановить анимацию
+        '''
+        plt.ioff()
+
+    def updateData(self, E: npt.NDArray, H: npt.NDArray, timeCount: int):
+        '''
+        Обновить данные с распределением поля в пространстве
+        '''
+        self._line_E.set_ydata(E)
+        self._line_H.set_ydata(H)
+        timeCount=timeCount*self.dt
+        self._ax_E.set_title(str(timeCount))
+        self._fig.canvas.draw()
+        self._fig.canvas.flush_events()
+
+def showProbeSignals(probes: List[Probe], minYSize: float, maxYSize: float, dt: float):
+    '''
+    Показать графики сигналов, зарегистрированых в датчиках, в секундах.
 
     probes - список экземпляров класса Probe.
-    dx - дискрет по пространству, м
-    dt - дискрет по времени, с
-    minYSize, maxYSize - интервал отображения графика по оси Y.
+    minYSize, maxYSize - интервал отображения по оси Y.
+    dt - шаг по времени (секунды).
     '''
-    # Создание окна с графиков
-    fig, axes_list = pylab.subplots(nrows=len(probes),
-                                    figsize=(10, 6.5),
-                                    tight_layout={'w_pad': 0.7, 'h_pad': 0.7})
-    fig.suptitle('Сигналы в датчиках')
+    # Создаем окно и ось
+    fig, ax = plt.subplots()
 
-    maxval = 0;
-    minval = 0;
+    # Пусть по оси X будет время в секундах
+    time_axis = np.arange(len(probes[0].E)) * dt
 
-    # legends = []
-    # Вывод сигналов в окно
-    for n, (probe, ax) in enumerate(zip(probes, axes_list)):
-        # Настройка внешнего вида графиков
-        ax.set_xlim(0, len(probes[0].E) * dt * 1e9)
-        ax.set_ylim(minYSize, maxYSize)
-        ax.set_xlabel('t, нс')
-        ax.set_ylabel('Ez, В/м')
-        ax.grid()
-
-        time_list = np.arange(len(probe.E)) * dt * 1e9
-        maxval = np.max(probe.E)
-        print(f'dx: {dx}')
-        print(f"{n.numerator} max: {maxval}")
-        minval = np.min(probe.E)
-        legend = 'Датчик {n}: x = {pos:.5f}; Max = {maxval:.5f}; Min = {minval:.5f}'.format(
-            n=n + 1, pos=probe.position * dx, maxval=maxval, minval=minval)
-        # legends.append(legend)
-        ax.plot(time_list, probe.E)
-
-        # Создание и отображение легенды на графике
-        legend_obj = ax.legend([legend])
-        legend_obj.set_draggable(True)
-
-
-    # Показать окно с графиками
-    pylab.show()
-  
-    
-
-
-def showProbeAll(probeSignal: Probe, probes: List[Probe],
-                     dx: float, dt: float, minYSize: float, maxYSize: float):
-    '''
-    Показать графики сигналов, зарегистрированых в датчиках.
-
-    probes - список экземпляров класса Probe.
-    minYSize, maxYSize - интервал отображения графика по оси Y.
-    '''
-
-# Создание окна с графиков
-    fig, axes_list = pylab.subplots(nrows=2 * len(probes) + 2,
-                                    figsize=(10, 6.5),
-                                    tight_layout={'w_pad': 0.7, 'h_pad': 0.7})
-    fig.suptitle('Сигналы в датчиках')
-
-    maxval = 0;
-    minval = 0;
-
-    b = len(probes)
-
-    # Вывод сигналов в окно
-    for n, (probe, ax) in enumerate(zip(probes, axes_list[range(0, b)])):
-        # Настройка внешнего вида графиков
-        ax.set_xlim(0, len(probes[0].E) * dt * 1e9)
-        ax.set_ylim(minYSize, maxYSize)
-        ax.set_xlabel('t, нс')
-        ax.set_ylabel('Ez, В/м')
-        ax.grid()
-
-        time_list = np.arange(len(probe.E)) * dt * 1e9
-        
-        maxval = np.max(probe.E)
-        minval = np.min(probe.E)
-        
-        legend = 'Датчик {n}: x = {pos:.5f} m; U Max = {maxval:.5f}; U Min = {minval:.5f}'.format(
-            n=n + 1, pos=probe.position * dx, maxval=maxval, minval=minval)
-        # legends.append(legend)
-        ax.plot(time_list, probe.E)
-
-        # Создание и отображение легенды на графике
-        legend_obj = ax.legend([legend])
-        legend_obj.set_draggable(True)
-
-    
-    
-
-    # спектральная плотность
-    for n, (probe, ax) in enumerate(zip(probes, axes_list[range(b, 2 * b)])):
-        fft = np.abs(np.fft.fft(probe.E))
-        #len(probe.E)
-        fftfreq = np.fft.fftfreq(len(probe.E), dt)
-
-        # Настройка внешнего вида графиков
-
-        #ax.set_xlim(0, numpy.max(fftfreq)) -2*1e-9, 2*1e-9
-        ax.set_xlim(np.min(fftfreq) / 150, np.max(fftfreq) / 150)
-        ax.set_ylim(np.min(fft), np.max(fft))
-        ax.set_xlabel('f, Hz')
-        ax.set_ylabel('Ez, В/Гц')
-        ax.grid()
-        
-        maxval = np.max(probe.E)
-
-        minval = np.min(probe.E)
-        legend = 'Датчик {n}: x = {pos:.5f} m; F Max = {maxval:.5f}; F Min = {minval:.5f}'.format(
-            n=n + 1, pos=probe.position * dx, maxval=np.max(fft), minval=np.min(fft))
-        # legends.append(legend)
-        ax.plot(fftfreq, fft)
-
-        # Создание и отображение легенды на графике
-        legend_obj = ax.legend([legend])
-        legend_obj.set_draggable(False)
-
-
-    # ГРАФИК СПЕКТА ПАДАЮЩЕГО СИГНАЛА
-
-    ax = axes_list[-2]
-    # частота подающего сигнала
-
-
-    #len(probe.E)
-    fftfreq = np.fft.fftfreq(len(probes[1].E), dt)
-    fft_P = np.abs(np.fft.fft(probeSignal.E))
-
-    # Настройка внешнего вида графиков
-
-    #ax.set_xlim(0, numpy.max(fftfreq)) -2*1e-9, 2*1e-9
-    ax.set_xlim(np.min(fftfreq) / 300, np.max(fftfreq) / 300)
-    #ax.set_xlim(-4*1e-9, 4*1e-9)
-    ax.set_ylim(0, np.max(fft_P))
-    ax.set_xlabel('f, Hz')
-    ax.set_ylabel('Ez, В/Гц')
+    # Настройка границ по времени
+    ax.set_xlim(0, time_axis[-1])
+    ax.set_ylim(minYSize, maxYSize)
+    ax.set_xlabel('Время, с')
+    ax.set_ylabel('Ez, В/м')
     ax.grid()
-    
-    ax.plot(fftfreq, fft_P)
 
+    # Построение сигналов
+    for probe in probes:
+        ax.plot(time_axis, probe.E)
 
+    # Легенды
+    legend = ['Probe x = {}'.format(probe.position) for probe in probes]
+    ax.legend(legend)
 
-    # ПОСЛЕДНИЙ ГРАФИК
-    
-    ax = axes_list[-1]
-    # Гамма от частоты
-    
-    #частота отраженного сигнала
-    fft_O = np.abs(np.fft.fft(probes[0].E))
-    
-    for i in range(len(fftfreq)):
-        if fft_O[i] < 0.5:
-            fft_O[i] = 0.0
-        if fft_P[i] < 0.5:
-            fft_P[i] = 0.0
-
-    Gamma = np.abs( np.divide(
-    fft_O,
-    fft_P
-    ) )
-
-
-    # Настройка внешнего вида графиков
-
-    #ax.set_xlim(0, numpy.max(fftfreq)) -2*1e-9, 2*1e-9
-    ax.set_xlim(np.min(fftfreq) / 150, np.max(fftfreq) / 150)
-    ax.set_ylim(0, 1)
-    ax.set_xlabel('f, Hz')
-    ax.set_ylabel('Ez, В/Гц')
-    ax.grid()
-    
-
-    ax.plot(fftfreq, Gamma)
-
-    pylab.show()
-    
-# костылим что бы для отчета сделать большие графики
-def showProbeFalRefSignal(probeFallSignal: Probe, probeRefSignal: Probe, dx: float, dt: float,
-                      minYSize: float, maxYSize: float):
-    '''
-    Сформировать график по выбранному датчику.
-
-    probes - список экземпляров класса Probe.
-    minYSize, maxYSize - интервал отображения графика по оси Y.
-    '''
-
-# Создание окна с графиков
-    fig, axes_list = pylab.subplots(nrows=2,
-                                    figsize=(10, 6.5),
-                                    tight_layout={'w_pad': 0.7, 'h_pad': 0.7})
-    fig.suptitle('Сигналы')
-
-    maxval = 0;
-    minval = 0;
-    
-    probes = [probeFallSignal, probeRefSignal]
-
-    # Вывод сигналов в окно
-    for n, (probe, ax) in enumerate(zip(probes, axes_list[range(0, 2)])):
-        # Настройка внешнего вида графиков
-        ax.set_xlim(0, len(probes[n].E) * dt * 1e9)
-        ax.set_ylim(minYSize, maxYSize)
-        ax.set_xlabel('t, нс')
-        ax.set_ylabel('Ez, В/м')
-        ax.grid()
-
-        time_list = np.arange(len(probe.E)) * dt * 1e9
-        
-        maxval = np.max(probe.E)
-        minval = np.min(probe.E)
-        
-        legend = 'Датчик {n}: x = {pos:.5f} m; U Max = {maxval:.5f}; U Min = {minval:.5f}'.format(
-            n=n + 1, pos=probe.position * dx, maxval=maxval, minval=minval)
-        # legends.append(legend)
-        ax.plot(time_list, probe.E)
-
-        # Создание и отображение легенды на графике
-        legend_obj = ax.legend([legend])
-        legend_obj.set_draggable(True)
-
-    pylab.show()
-    
-# опять костылим что бы для отчета сделать большие графики
-def showProbeFalRefSpectrum(probeFallSignal: Probe, probeRefSignal: Probe, dx: float, dt: float,
-                      minYSize: float, maxYSize: float):
-    '''
-    Сформировать график по выбранному датчику.
-
-    probes - список экземпляров класса Probe.
-    minYSize, maxYSize - интервал отображения графика по оси Y.
-    '''
-
-# Создание окна с графиков
-    fig, axes_list = pylab.subplots(nrows= 2,
-                                    figsize=(10, 6.5),
-                                    tight_layout={'w_pad': 0.7, 'h_pad': 0.7})
-    fig.suptitle('Спектры сигналов')
-
-    maxval = 0;
-    minval = 0;
-    
-    probes = [probeFallSignal, probeRefSignal]
-
-    for n, (probe, ax) in enumerate(zip(probes, axes_list[range(0, 2)])):
-        fft = np.abs(np.fft.fft(probe.E))
-        #len(probe.E)
-        fftfreq = np.fft.fftfreq(len(probe.E), dt)
-
-        # Настройка внешнего вида графиков
-
-        #ax.set_xlim(0, numpy.max(fftfreq)) -2*1e-9, 2*1e-9
-        ax.set_xlim(np.min(fftfreq) / 300, np.max(fftfreq) / 300)
-        ax.set_ylim(np.min(fft), np.max(fft))
-        ax.set_xlabel('f, Hz')
-        ax.set_ylabel('Ez, В/Гц')
-        ax.grid()
-        
-        maxval = np.max(probe.E)
-
-        minval = np.min(probe.E)
-        legend = 'Датчик {n}: x = {pos:.5f} m; F Max = {maxval:.5f}; F Min = {minval:.5f}'.format(
-            n=n + 1, pos=probe.position * dx, maxval=np.max(fft), minval=np.min(fft))
-        # legends.append(legend)
-        ax.plot(fftfreq, fft)
-
-        # Создание и отображение легенды на графике
-        legend_obj = ax.legend([legend])
-        legend_obj.set_draggable(False)
-
-    pylab.show()
-    
-# опять костылим что бы для отчета сделать большие графики
-def showProbeKoeReflectedOfFrequency(probeFallSignal: Probe, probeRefSignal: Probe, dx: float, dt: float,
-                      minYSize: float, maxYSize: float):
-    '''
-    Сформировать график по выбранному датчику.
-
-    probes - список экземпляров класса Probe.
-    minYSize, maxYSize - интервал отображения графика по оси Y.
-    '''
-
-# Создание окна с графиков
-    fig, axes_list = pylab.subplots(nrows= 2,
-                                    figsize=(10, 6.5),
-                                    tight_layout={'w_pad': 0.7, 'h_pad': 0.7})
-    fig.suptitle('Отраженный сигнал')
-
-    maxval = 0;
-    minval = 0;
-
-    # ГРАФИК СПЕКТА ПАДАЮЩЕГО СИГНАЛА
-
-    ax = axes_list[0]
-    # частота подающего сигнала
-
-
-    #len(probe.E)
-    fftfreq = np.fft.fftfreq(len(probeFallSignal.E), dt)
-    fft_P = np.abs(np.fft.fft(probeFallSignal.E))
-
-    # Настройка внешнего вида графиков
-
-    #ax.set_xlim(0, numpy.max(fftfreq)) -2*1e-9, 2*1e-9
-    ax.set_xlim(np.min(fftfreq) / 300, np.max(fftfreq) / 300)
-    #ax.set_xlim(-4*1e-9, 4*1e-9)
-    ax.set_ylim(0, np.max(fft_P))
-    ax.set_xlabel('f, Hz')
-    ax.set_ylabel('Ez, В/Гц')
-    ax.grid()
-    
-    ax.plot(fftfreq, fft_P)
-
-
-
-    # ПОСЛЕДНИЙ ГРАФИК
-    
-    ax = axes_list[1]
-    # Гамма от частоты
-    
-    #частота отраженного сигнала
-    fft_O = np.abs(np.fft.fft(probeRefSignal.E))
-    
-    for i in range(len(fftfreq)):
-        if fft_O[i] < 2:
-            fft_O[i] = 0.0
-        if fft_P[i] < 2:
-            fft_P[i] = 0.0
-
-
-    Gamma = np.abs( np.divide(
-    fft_O,
-    fft_P
-    ) )
-
-
-    # Настройка внешнего вида графиков
-
-    #ax.set_xlim(0, numpy.max(fftfreq)) -2*1e-9, 2*1e-9
-    ax.set_xlim(np.min(fftfreq) / 300, np.max(fftfreq) / 300)
-    ax.set_ylim(0, 1)
-    ax.set_xlabel('f, Hz')
-    ax.set_ylabel('Ez, В/Гц')
-    ax.grid()
-    
-
-    ax.plot(fftfreq, Gamma)
-
-    pylab.show()
+    plt.show()
